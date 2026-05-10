@@ -28,7 +28,8 @@ make clean && make      # Full rebuild
 cp kernel8.img /media/$USER/boot/ && sync
 
 # QEMU test (UART only — limited peripheral emulation)
-qemu-system-aarch64 -M raspi4b -m 2G -serial stdio -kernel kernel8.img -nographic
+# Mini UART is the second serial device, so first is null
+qemu-system-aarch64 -M raspi4b -m 2G -serial null -serial mon:stdio -kernel kernel8.img -display none
 # Exit QEMU: Ctrl-A, X
 ```
 

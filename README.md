@@ -113,27 +113,9 @@ aarch64-none-elf-nm kernel8.elf | sort
 
 The Pi 4 boots from a FAT32-formatted MicroSD card. It needs GPU firmware files (from Raspberry Pi) plus your kernel.
 
-#### 3a. Format the SD Card
+There are two methods to prepare the SD card. Method A is simpler; Method B gives you a minimal card with only the essential files.
 
-**macOS:**
-1. Insert the MicroSD card
-2. Open **Disk Utility**
-3. Select the SD card (careful — don't format the wrong drive!)
-4. Click **Erase**, choose format **MS-DOS (FAT)**, scheme **Master Boot Record**
-5. Click Erase
-
-**Linux:**
-```bash
-# Find your SD card device (usually /dev/sdX or /dev/mmcblkX)
-lsblk
-
-# Format as FAT32 (replace /dev/sdX with your actual device — BE CAREFUL)
-sudo mkfs.vfat -F 32 /dev/sdX1
-```
-
-#### 3b. Get Raspberry Pi Firmware (Recommended Method)
-
-The Pi 4's GPU needs firmware files, device tree blobs, and overlays to boot. The most reliable method is to flash a stock Raspberry Pi OS image and then replace only the kernel:
+#### Method A: Flash Raspberry Pi OS and Replace Kernel (Recommended)
 
 1. Download and install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 2. Flash **Raspberry Pi OS Lite (64-bit)** to your MicroSD card
@@ -141,7 +123,6 @@ The Pi 4's GPU needs firmware files, device tree blobs, and overlays to boot. Th
 4. Replace two files on the boot partition:
 
 ```bash
-# Replace the Linux kernel with VitOS (adjust mount point for your system)
 # macOS:
 cp kernel8.img /Volumes/bootfs/kernel8.img
 cp config.txt /Volumes/bootfs/config.txt
@@ -153,9 +134,54 @@ cp config.txt /media/$USER/bootfs/config.txt
 sync
 ```
 
-This keeps all firmware files, device tree blobs (`.dtb`), and overlays intact — which are required for reliable booting on Pi 4.
+This keeps all firmware files, device tree blobs, and overlays intact.
 
-> **Why not just copy 3 firmware files?** The Pi 4's boot process has evolved, and modern firmware versions expect device tree blobs and overlay files to be present. Copying only `bootcode.bin`, `start4.elf`, and `fixup4.dat` may result in the kernel not executing at all.
+#### Method B: Minimal SD Card (4 Files)
+
+Format a blank SD card as FAT32 with MBR, then copy only the essential files.
+
+**Format the card:**
+
+```bash
+# macOS — find your SD card device, then format:
+diskutil list
+diskutil eraseDisk FAT32 BOOTFS MBRFormat /dev/diskN   # replace N with your disk number
+
+# Linux:
+lsblk
+sudo mkfs.vfat -F 32 /dev/sdX1   # replace sdX with your device — BE CAREFUL
+```
+
+**Get the firmware files.** You need 3 files from the [Raspberry Pi firmware](https://github.com/raspberrypi/firmware/tree/master/boot). The easiest source is a Raspberry Pi OS boot partition — flash it to another card or download the files individually:
+
+- `start4.elf` — GPU firmware
+- `fixup4.dat` — GPU memory configuration
+- `bcm2711-rpi-4-b.dtb` — device tree blob (required on Pi 4)
+
+**Copy everything to the card:**
+
+```bash
+# macOS (mount point is /Volumes/BOOTFS after formatting):
+cp start4.elf /Volumes/BOOTFS/
+cp fixup4.dat /Volumes/BOOTFS/
+cp bcm2711-rpi-4-b.dtb /Volumes/BOOTFS/
+cp kernel8.img /Volumes/BOOTFS/
+cp config.txt /Volumes/BOOTFS/
+sync
+```
+
+Your SD card should contain exactly these files:
+
+```
+SD Card (FAT32, MBR)
+├── start4.elf            ← GPU firmware
+├── fixup4.dat            ← GPU memory config
+├── bcm2711-rpi-4-b.dtb   ← device tree (Pi 4 requires this)
+├── config.txt            ← from this project
+└── kernel8.img           ← your OS
+```
+
+> **Note:** `bootcode.bin` is NOT needed on Pi 4 — the EEPROM bootloader handles that role. However, the device tree blob (`bcm2711-rpi-4-b.dtb`) IS required — without it, the firmware will not start the kernel.
 
 Eject the SD card safely before removing it.
 
@@ -304,7 +330,7 @@ kernel.c runs:
 
 ## QEMU Testing (Optional)
 
-You can do a quick sanity check with QEMU before deploying to real hardware. Note that QEMU's Pi 4 emulation is limited — UART works but many peripherals don't.
+You can do a quick sanity check with QEMU before deploying to real hardware. Note that QEMU's Pi 4 emulation is limited — UART works but many peripherals (GPIO, SD card, USB) don't.
 
 ```bash
 # Install QEMU (if not already installed)
@@ -314,10 +340,12 @@ brew install qemu
 sudo apt install qemu-system-aarch64
 
 # Run VitOS in QEMU
-qemu-system-aarch64 -M raspi4b -m 2G -serial stdio -kernel kernel8.img -nographic
+qemu-system-aarch64 -M raspi4b -m 2G -serial null -serial mon:stdio -kernel kernel8.img -display none
 
 # Exit QEMU: press Ctrl-A, then X
 ```
+
+**Why `-serial null -serial mon:stdio`?** The Pi 4 has two UARTs: PL011 (UART0) and Mini UART (UART1). VitOS uses the Mini UART, which is the **second** serial device in QEMU. The first `-serial null` discards PL011 output, and the second `-serial mon:stdio` connects the Mini UART to your terminal.
 
 ## Quick Iteration Workflow
 

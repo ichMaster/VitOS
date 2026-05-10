@@ -131,56 +131,31 @@ lsblk
 sudo mkfs.vfat -F 32 /dev/sdX1
 ```
 
-#### 3b. Download Raspberry Pi Firmware
+#### 3b. Get Raspberry Pi Firmware (Recommended Method)
 
-The Pi 4's GPU needs three firmware files to boot. Download them from the official repo:
+The Pi 4's GPU needs firmware files, device tree blobs, and overlays to boot. The most reliable method is to flash a stock Raspberry Pi OS image and then replace only the kernel:
 
-```bash
-# Create a temporary directory for firmware
-mkdir -p /tmp/rpi-firmware && cd /tmp/rpi-firmware
-
-# Download the three required files
-curl -LO https://github.com/raspberrypi/firmware/raw/master/boot/bootcode.bin
-curl -LO https://github.com/raspberrypi/firmware/raw/master/boot/start4.elf
-curl -LO https://github.com/raspberrypi/firmware/raw/master/boot/fixup4.dat
-```
-
-**What these files do:**
-- `bootcode.bin` — First-stage bootloader, loaded by the GPU from silicon ROM
-- `start4.elf` — GPU firmware for Pi 4, reads `config.txt`, loads your kernel
-- `fixup4.dat` — Memory split configuration between GPU and CPU
-
-#### 3c. Copy Everything to the SD Card
-
-Your SD card should end up with exactly these 5 files in the root directory:
-
-```
-SD Card (FAT32)
-├── bootcode.bin      ← from Raspberry Pi firmware
-├── start4.elf        ← from Raspberry Pi firmware
-├── fixup4.dat        ← from Raspberry Pi firmware
-├── config.txt        ← from this project (tells GPU to use 64-bit mode)
-└── kernel8.img       ← from this project (your OS!)
-```
+1. Download and install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+2. Flash **Raspberry Pi OS Lite (64-bit)** to your MicroSD card
+3. After flashing, the boot partition (`bootfs`) will mount automatically
+4. Replace two files on the boot partition:
 
 ```bash
-# Mount the SD card and copy files
-# Replace /Volumes/BOOT with your SD card mount point
+# Replace the Linux kernel with VitOS (adjust mount point for your system)
+# macOS:
+cp kernel8.img /Volumes/bootfs/kernel8.img
+cp config.txt /Volumes/bootfs/config.txt
+sync
 
-# Firmware files
-cp /tmp/rpi-firmware/bootcode.bin /Volumes/BOOT/
-cp /tmp/rpi-firmware/start4.elf /Volumes/BOOT/
-cp /tmp/rpi-firmware/fixup4.dat /Volumes/BOOT/
-
-# Your OS
-cp kernel8.img /Volumes/BOOT/
-cp config.txt /Volumes/BOOT/
-
-# Make sure everything is written to the card
+# Linux:
+cp kernel8.img /media/$USER/bootfs/kernel8.img
+cp config.txt /media/$USER/bootfs/config.txt
 sync
 ```
 
-**On Linux**, the mount point is typically `/media/$USER/BOOT` or similar.
+This keeps all firmware files, device tree blobs (`.dtb`), and overlays intact — which are required for reliable booting on Pi 4.
+
+> **Why not just copy 3 firmware files?** The Pi 4's boot process has evolved, and modern firmware versions expect device tree blobs and overlay files to be present. Copying only `bootcode.bin`, `start4.elf`, and `fixup4.dat` may result in the kernel not executing at all.
 
 Eject the SD card safely before removing it.
 

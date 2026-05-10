@@ -1,0 +1,17 @@
+# Build artifacts
+*.o
+*.elf
+*.img
+
+# Editor and IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# QEMU state
+*.qcow2
